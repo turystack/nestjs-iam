@@ -9,8 +9,12 @@ export default defineConfig({
 		},
 	},
 	test: {
-		include: ['**/*.test.ts'],
+		include: [
+			'**/*.test.ts',
+		],
 		root: './src',
-		setupFiles: ['./vitest.setup.ts'],
+		setupFiles: [
+			'./vitest.setup.ts',
+		],
 	},
 })
