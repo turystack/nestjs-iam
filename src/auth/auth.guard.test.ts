@@ -1,3 +1,4 @@
+import type { ExecutionContext } from '@nestjs/common'
 import { SignJWT } from 'jose'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -37,12 +38,13 @@ function createContext(headers: Record<string, string> = {}) {
 		headers,
 		user: undefined as IamProfile | undefined,
 	}
-	return {
+	const context = {
 		request,
 		switchToHttp: () => ({
 			getRequest: () => request,
 		}),
 	}
+	return context as unknown as ExecutionContext & { request: typeof request }
 }
 
 describe('AuthGuard', () => {
@@ -62,7 +64,7 @@ describe('AuthGuard', () => {
 
 	it('should throw IamUnauthorizedException when no authorization header', async () => {
 		const ctx = createContext()
-		await expect(guard.canActivate(ctx as any)).rejects.toThrow(
+		await expect(guard.canActivate(ctx)).rejects.toThrow(
 			IamUnauthorizedException,
 		)
 	})
@@ -71,7 +73,7 @@ describe('AuthGuard', () => {
 		const ctx = createContext({
 			authorization: 'Bearer ',
 		})
-		await expect(guard.canActivate(ctx as any)).rejects.toThrow(
+		await expect(guard.canActivate(ctx)).rejects.toThrow(
 			IamUnauthorizedException,
 		)
 	})
@@ -80,7 +82,7 @@ describe('AuthGuard', () => {
 		const ctx = createContext({
 			authorization: 'Bearer invalid-token',
 		})
-		await expect(guard.canActivate(ctx as any)).rejects.toThrow(
+		await expect(guard.canActivate(ctx)).rejects.toThrow(
 			IamUnauthorizedException,
 		)
 	})
@@ -92,7 +94,7 @@ describe('AuthGuard', () => {
 		const ctx = createContext({
 			authorization: `Bearer ${token}`,
 		})
-		await expect(guard.canActivate(ctx as any)).rejects.toThrow(
+		await expect(guard.canActivate(ctx)).rejects.toThrow(
 			IamUnauthorizedException,
 		)
 	})
@@ -105,7 +107,7 @@ describe('AuthGuard', () => {
 		const ctx = createContext({
 			authorization: `Bearer ${token}`,
 		})
-		await expect(guard.canActivate(ctx as any)).rejects.toThrow(
+		await expect(guard.canActivate(ctx)).rejects.toThrow(
 			IamUnauthorizedException,
 		)
 	})
@@ -117,7 +119,7 @@ describe('AuthGuard', () => {
 		const ctx = createContext({
 			authorization: `Bearer ${token}`,
 		})
-		const result = await guard.canActivate(ctx as any)
+		const result = await guard.canActivate(ctx)
 
 		expect(result).toBe(true)
 		expect(ctx.request.user).toEqual(mockProfile)

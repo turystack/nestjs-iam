@@ -1,9 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ExecutionContext } from '@nestjs/common'
+import type { Reflector } from '@nestjs/core'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { IamAclMetadata, IamProfile } from '@/iam.types.js'
 
 import { AclGuard } from './acl.guard.js'
-import { AclService } from './acl.service.js'
+import type { AclService } from './acl.service.js'
+
+type MockRequest = { params: { workspaceId: string }; user: IamProfile | undefined }
 
 const mockProfile: IamProfile = {
 	scopes: [
@@ -19,10 +23,10 @@ const mockProfile: IamProfile = {
 }
 
 function createContext(
-	metadata: IamAclMetadata | undefined,
+	metadata: IamAclMetadata<MockRequest> | undefined,
 	profile?: IamProfile,
 ) {
-	const request = {
+	const request: MockRequest = {
 		params: {
 			workspaceId: 'ws-1',
 		},
@@ -46,9 +50,9 @@ function createContext(
 	}
 
 	return {
-		aclService,
-		context,
-		reflector,
+		aclService: aclService as unknown as AclService,
+		context: context as unknown as ExecutionContext,
+		reflector: reflector as unknown as Reflector,
 		request,
 	}
 }
@@ -56,43 +60,37 @@ function createContext(
 describe('AclGuard', () => {
 	it('should return true when no ACL metadata', async () => {
 		const { reflector, aclService, context } = createContext(undefined)
-		const guard = new AclGuard(reflector as any, aclService as any)
+		const guard = new AclGuard(reflector, aclService)
 
-		const result = await guard.canActivate(context as any)
+		const result = await guard.canActivate(context)
 		expect(result).toBe(true)
 	})
 
 	it('should return false when no profile on request', async () => {
-		const metadata: IamAclMetadata = {
-			getContext: (req: any) => ({
+		const metadata: IamAclMetadata<MockRequest> = {
+			getContext: (req) => ({
 				workspaceId: req.params.workspaceId,
 			}),
 			permission: 'user:read',
 		}
-		const { reflector, aclService, context } = createContext(
-			metadata,
-			undefined,
-		)
-		const guard = new AclGuard(reflector as any, aclService as any)
+		const { reflector, aclService, context } = createContext(metadata, undefined)
+		const guard = new AclGuard(reflector, aclService)
 
-		const result = await guard.canActivate(context as any)
+		const result = await guard.canActivate(context)
 		expect(result).toBe(false)
 	})
 
 	it('should call aclService.canPerformAction and return true', async () => {
-		const metadata: IamAclMetadata = {
-			getContext: (req: any) => ({
+		const metadata: IamAclMetadata<MockRequest> = {
+			getContext: (req) => ({
 				workspaceId: req.params.workspaceId,
 			}),
 			permission: 'user:read',
 		}
-		const { reflector, aclService, context } = createContext(
-			metadata,
-			mockProfile,
-		)
-		const guard = new AclGuard(reflector as any, aclService as any)
+		const { reflector, aclService, context } = createContext(metadata, mockProfile)
+		const guard = new AclGuard(reflector, aclService)
 
-		const result = await guard.canActivate(context as any)
+		const result = await guard.canActivate(context)
 		expect(result).toBe(true)
 		expect(aclService.canPerformAction).toHaveBeenCalledWith(
 			mockProfile,

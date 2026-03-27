@@ -1,3 +1,6 @@
+import type { FactoryProvider, ModuleMetadata } from '@nestjs/common'
+import type { ConfigService } from '@nestjs/config'
+
 export type IamProfile = {
 	userId: string
 	workspaceId: string
@@ -37,7 +40,10 @@ export type IamOptions = {
 }
 
 export type IamModuleOptions = {
-	imports?: any[]
-	inject?: any[]
-	useFactory: (...args: any[]) => IamOptions | Promise<IamOptions>
+	imports?: ModuleMetadata['imports']
+	inject?: FactoryProvider['inject']
+	useFactory: (
+		config: ConfigService,
+		...args: unknown[]
+	) => IamOptions | Promise<IamOptions>
 }

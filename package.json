@@ -1,7 +1,7 @@
 {
 	"name": "@turystack/nestjs-iam",
 	"private": false,
-	"version": "0.0.1",
+	"version": "0.0.3",
 	"type": "module",
 	"main": "./dist/index.js",
 	"module": "./dist/index.js",
@@ -37,6 +37,7 @@
 	},
 	"peerDependencies": {
 		"@nestjs/common": "^11.0.0",
+		"@nestjs/config": "^4.0.0",
 		"@nestjs/core": "^11.0.0",
 		"reflect-metadata": "^0.2.0"
 	},
@@ -44,6 +45,7 @@
 		"@biomejs/biome": "2.2.2",
 		"@casl/ability": "^6.7.3",
 		"@nestjs/common": "^11.0.0",
+		"@nestjs/config": "^4.0.3",
 		"@nestjs/core": "^11.0.0",
 		"@nestjs/testing": "^11.0.0",
 		"@types/node": "^25.5.0",

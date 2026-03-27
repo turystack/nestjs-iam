@@ -1,4 +1,5 @@
 import { type DynamicModule, Module } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 
 import { IAM_OPTIONS } from '@/iam.constants.js'
 import type { IamModuleOptions } from '@/iam.types.js'
@@ -22,7 +23,10 @@ export class IamModule {
 			module: IamModule,
 			providers: [
 				{
-					inject: options.inject ?? [],
+					inject: [
+						ConfigService,
+						...(options.inject ?? []),
+					],
 					provide: IAM_OPTIONS,
 					useFactory: options.useFactory,
 				},
