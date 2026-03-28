@@ -33,6 +33,7 @@
 	},
 	"dependencies": {
 		"@casl/ability": "^6.0.0",
+		"bcryptjs": "^2.4.3",
 		"jose": "^5.9.0"
 	},
 	"peerDependencies": {
@@ -43,6 +44,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.2.2",
+		"@types/bcryptjs": "^2.4.6",
 		"@casl/ability": "^6.7.3",
 		"@nestjs/common": "^11.0.0",
 		"@nestjs/config": "^4.0.3",

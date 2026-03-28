@@ -33,10 +33,18 @@ export type IamAclMetadata<T = {}> = {
 	getContext: (request: T) => IamAclContext
 }
 
+export type TokenPair = {
+	accessToken: string
+	refreshToken: string
+	expiresIn: number
+}
+
 export type IamOptions = {
 	secret: string
 	permissions: IamPermissions
 	profileResolver: IamProfileResolver
+	accessExpiresIn?: string
+	refreshExpiresIn?: string
 }
 
 export type IamModuleOptions = {

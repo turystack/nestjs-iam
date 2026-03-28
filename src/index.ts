@@ -7,9 +7,12 @@ export type {
 	IamProfile,
 	IamProfileResolver,
 	IamScope,
+	TokenPair,
 } from '@/iam.types.js'
 
 export { AclService } from '@/acl/acl.service.js'
+export { IamTokenService } from '@/token/token.service.js'
+export { IamCryptoService } from '@/crypto/crypto.service.js'
 export { ACL } from '@/decorators/acl.decorator.js'
 export { Auth } from '@/decorators/auth.decorator.js'
 export { Profile } from '@/decorators/authenticated-profile.decorator.js'
