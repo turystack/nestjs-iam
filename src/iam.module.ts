@@ -7,8 +7,6 @@ import type { IamModuleOptions } from '@/iam.types.js'
 import { AclGuard } from '@/acl/acl.guard.js'
 import { AclService } from '@/acl/acl.service.js'
 import { AuthGuard } from '@/auth/auth.guard.js'
-import { IamCryptoService } from '@/crypto/crypto.service.js'
-import { IamTokenService } from '@/token/token.service.js'
 
 @Module({})
 export class IamModule {
@@ -19,8 +17,6 @@ export class IamModule {
 				AuthGuard,
 				AclGuard,
 				AclService,
-				IamTokenService,
-				IamCryptoService,
 			],
 			global: true,
 			imports: options.imports ?? [],
@@ -37,8 +33,6 @@ export class IamModule {
 				AuthGuard,
 				AclGuard,
 				AclService,
-				IamTokenService,
-				IamCryptoService,
 			],
 		}
 	}
