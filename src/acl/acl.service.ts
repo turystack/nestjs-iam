@@ -12,7 +12,7 @@ import type { IamAclContext, IamOptions, IamProfile } from '@/iam.types.js'
 import { IamForbiddenException } from '@/exceptions/iam-forbidden.exception.js'
 
 @Injectable()
-export class AclService {
+export class IamAclService {
 	constructor(
 		@Inject(IAM_OPTIONS)
 		private readonly options: IamOptions,

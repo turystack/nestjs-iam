@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { IamOptions, IamPermissions, IamProfile } from '@/iam.types.js'
 
-import { AclService } from './acl.service.js'
+import { IamAclService } from './acl.service.js'
 
 import { IamForbiddenException } from '@/exceptions/iam-forbidden.exception.js'
 
@@ -49,8 +49,8 @@ function createProfileWithOrgScope(
 	}
 }
 
-describe('AclService', () => {
-	let service: AclService
+describe('IamAclService', () => {
+	let service: IamAclService
 
 	beforeEach(() => {
 		const options: IamOptions = {
@@ -58,7 +58,7 @@ describe('AclService', () => {
 			profileResolver: async () => null,
 			secret: 'test',
 		}
-		service = new AclService(options)
+		service = new IamAclService(options)
 	})
 
 	it('should allow when user has the exact permission', () => {

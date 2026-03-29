@@ -9,15 +9,15 @@ import { Reflector } from '@nestjs/core'
 import { ACL_KEY } from '@/iam.constants.js'
 import type { IamAclMetadata, IamProfile } from '@/iam.types.js'
 
-import { AclService } from './acl.service.js'
+import { IamAclService } from './acl.service.js'
 
 @Injectable()
 export class AclGuard implements CanActivate {
 	constructor(
 		@Inject(Reflector)
 		private readonly reflector: Reflector,
-		@Inject(AclService)
-		private readonly aclService: AclService,
+		@Inject(IamAclService)
+		private readonly aclService: IamAclService,
 	) {}
 
 	async canActivate(context: ExecutionContext): Promise<boolean> {

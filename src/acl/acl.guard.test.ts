@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { IamAclMetadata, IamProfile } from '@/iam.types.js'
 
 import { AclGuard } from './acl.guard.js'
-import type { AclService } from './acl.service.js'
+import type { IamAclService } from './acl.service.js'
 
 type MockRequest = { params: { workspaceId: string }; user: IamProfile | undefined }
 
@@ -50,7 +50,7 @@ function createContext(
 	}
 
 	return {
-		aclService: aclService as unknown as AclService,
+		aclService: aclService as unknown as IamAclService,
 		context: context as unknown as ExecutionContext,
 		reflector: reflector as unknown as Reflector,
 		request,
