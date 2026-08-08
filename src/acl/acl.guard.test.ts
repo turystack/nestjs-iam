@@ -7,19 +7,23 @@ import type { IamAclMetadata, IamProfile } from '@/iam.types.js'
 import { AclGuard } from './acl.guard.js'
 import type { IamAclService } from './acl.service.js'
 
-type MockRequest = { params: { workspaceId: string }; user: IamProfile | undefined }
+type MockRequest = {
+	params: {
+		organizationId: string
+	}
+	user: IamProfile | undefined
+}
 
 const mockProfile: IamProfile = {
-	scopes: [
-		{
-			kind: 'WORKSPACE',
-			permissionIds: [
-				'user:read',
-			],
-		},
-	],
+	organizationId: 'org-1',
+	organizationRole: {
+		name: 'Admin',
+		permissionIds: [
+			'user:read',
+		],
+		roleId: 'role-1',
+	},
 	userId: 'user-1',
-	workspaceId: 'ws-1',
 }
 
 function createContext(
@@ -28,7 +32,7 @@ function createContext(
 ) {
 	const request: MockRequest = {
 		params: {
-			workspaceId: 'ws-1',
+			organizationId: 'org-1',
 		},
 		user: profile,
 	}
@@ -69,11 +73,14 @@ describe('AclGuard', () => {
 	it('should return false when no profile on request', async () => {
 		const metadata: IamAclMetadata<MockRequest> = {
 			getContext: (req) => ({
-				workspaceId: req.params.workspaceId,
+				organizationId: req.params.organizationId,
 			}),
 			permission: 'user:read',
 		}
-		const { reflector, aclService, context } = createContext(metadata, undefined)
+		const { reflector, aclService, context } = createContext(
+			metadata,
+			undefined,
+		)
 		const guard = new AclGuard(reflector, aclService)
 
 		const result = await guard.canActivate(context)
@@ -83,11 +90,14 @@ describe('AclGuard', () => {
 	it('should call aclService.canPerformAction and return true', async () => {
 		const metadata: IamAclMetadata<MockRequest> = {
 			getContext: (req) => ({
-				workspaceId: req.params.workspaceId,
+				organizationId: req.params.organizationId,
 			}),
 			permission: 'user:read',
 		}
-		const { reflector, aclService, context } = createContext(metadata, mockProfile)
+		const { reflector, aclService, context } = createContext(
+			metadata,
+			mockProfile,
+		)
 		const guard = new AclGuard(reflector, aclService)
 
 		const result = await guard.canActivate(context)
@@ -96,7 +106,7 @@ describe('AclGuard', () => {
 			mockProfile,
 			'user:read',
 			{
-				workspaceId: 'ws-1',
+				organizationId: 'org-1',
 			},
 		)
 	})

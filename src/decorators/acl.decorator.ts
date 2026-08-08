@@ -8,7 +8,7 @@ import { AuthGuard } from '@/auth/auth.guard.js'
 
 export const ACL = <T = {}>(
 	permission: string,
-	getContext: (request: T) => IamAclContext,
+	getContext?: (request: T) => IamAclContext,
 ) =>
 	applyDecorators(
 		SetMetadata<string, IamAclMetadata<T>>(ACL_KEY, {

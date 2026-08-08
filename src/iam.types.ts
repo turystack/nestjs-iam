@@ -1,36 +1,62 @@
-import type { FactoryProvider, ModuleMetadata } from '@nestjs/common'
-import type { ConfigService } from '@nestjs/config'
+import type { ModuleMetadata, Type } from '@nestjs/common'
 
-export type IamProfile = {
-	userId: string
-	workspaceId: string
-	scopes: IamScope[]
+export type IamRole = {
+	roleId: string
+	name: string
+	permissionIds: string[]
 }
 
-export type IamScope = {
-	kind: 'WORKSPACE' | 'ORGANIZATION'
-	organization?: {
-		organizationId: string
-	}
-	role?: {
-		roleId: string
-		name: string
-	}
-	permissionIds: string[]
+export type IamWorkspaceRole = IamRole & {
+	workspaceId: string
+}
+
+/**
+ * One central organization, N workspaces. Tokens are minted for at most one
+ * workspace, so the profile carries at most one role of each kind:
+ * - `organizationRole` — the user's role in the organization as a whole
+ * - `workspaceRole` — the user's role in the workspace the token was minted for
+ *
+ * Both are optional: an organization-only user has no `workspaceRole`; a
+ * workspace-only user has no `organizationRole`.
+ */
+export type IamProfile = {
+	userId: string
+	organizationId: string
+	organizationRole?: IamRole
+	workspaceRole?: IamWorkspaceRole
 }
 
 export type IamPermissions = Record<string, string[]>
 
-export type IamProfileResolver = (userId: string) => Promise<IamProfile | null>
+/**
+ * The single bridge between IAM and your project: implement it in a
+ * project-level ProfileResolverService (typically backed by a lib UserRepository or
+ * UserService) and pass the class to `IamModule.register`.
+ *
+ * `workspaceId` is the workspace the token was minted for (absent on
+ * organization-only tokens) — return the user's role for that workspace.
+ */
+export interface IamProfileResolver {
+	resolveProfile(
+		userId: string,
+		workspaceId?: string,
+	): Promise<IamProfile | null>
+}
 
+/**
+ * Optional cross-check data extracted from the request. Anything provided is
+ * matched against the ability conditions: a mismatched `organizationId` or
+ * `workspaceId` fails the permission check.
+ */
 export type IamAclContext = {
-	workspaceId: string
 	organizationId?: string
+	workspaceId?: string
 }
 
 export type IamAclMetadata<T = {}> = {
 	permission: string
-	getContext: (request: T) => IamAclContext
+	/** Optional — organization-level routes usually need no request context. */
+	getContext?: (request: T) => IamAclContext
 }
 
 export type TokenPair = {
@@ -42,16 +68,25 @@ export type TokenPair = {
 export type IamOptions = {
 	secret: string
 	permissions: IamPermissions
-	profileResolver: IamProfileResolver
 	accessExpiresIn?: string
 	refreshExpiresIn?: string
 }
 
-export type IamModuleOptions = {
+export type IamModuleOptions = IamOptions & {
+	/**
+	 * Class implementing {@link IamProfileResolver}. Instantiated by the
+	 * module via DI — its dependencies come from global lib modules or from
+	 * `imports`.
+	 */
+	profileResolver: Type<IamProfileResolver>
+	/** Modules providing the resolver's dependencies, when they are not global. */
 	imports?: ModuleMetadata['imports']
-	inject?: FactoryProvider['inject']
-	useFactory: (
-		config: ConfigService,
-		...args: unknown[]
-	) => IamOptions | Promise<IamOptions>
 }
+
+/**
+ * Options returned by the `register((config) => ...)` factory form. `imports`
+ * is excluded: the module structure is built before the `ConfigService`
+ * exists, so in the factory form the resolver's dependencies must come from
+ * global modules.
+ */
+export type IamModuleFactoryOptions = Omit<IamModuleOptions, 'imports'>

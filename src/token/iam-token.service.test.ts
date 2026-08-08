@@ -5,12 +5,13 @@ import type { IamOptions } from '@/iam.types.js'
 
 import { IamTokenService } from './iam-token.service.js'
 
+import { IamUnauthorizedException } from '@/exceptions/iam-unauthorized.exception.js'
+
 const SECRET = 'test-secret-key-for-jwt-signing'
 
 function createService(overrides: Partial<IamOptions> = {}): IamTokenService {
 	const options: IamOptions = {
 		permissions: {},
-		profileResolver: async () => null,
 		secret: SECRET,
 		...overrides,
 	}
@@ -68,6 +69,15 @@ describe('IamTokenService', () => {
 			expect(result.expiresIn).toBe(1800)
 		})
 
+		it('should fall back to 3600s when the format is outside the s/m/h/d pattern', async () => {
+			const service = createService({
+				accessExpiresIn: '2 hours',
+			})
+			const result = await service.issueTokens('user-1')
+
+			expect(result.expiresIn).toBe(3600)
+		})
+
 		it('should respect custom refreshExpiresIn', async () => {
 			const service = createService({
 				refreshExpiresIn: '14d',
@@ -94,7 +104,7 @@ describe('IamTokenService', () => {
 			const { accessToken } = await service.issueTokens('user-1')
 
 			await expect(service.verifyRefreshToken(accessToken)).rejects.toThrow(
-				'Invalid refresh token',
+				IamUnauthorizedException,
 			)
 		})
 

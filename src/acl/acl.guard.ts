@@ -37,7 +37,7 @@ export class AclGuard implements CanActivate {
 			return false
 		}
 
-		const aclContext = aclMetadata.getContext(request)
+		const aclContext = aclMetadata.getContext?.(request)
 
 		this.aclService.canPerformAction(
 			profile,

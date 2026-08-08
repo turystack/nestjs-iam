@@ -1,8 +1,8 @@
 import type { ExecutionContext } from '@nestjs/common'
 import { SignJWT } from 'jose'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-import type { IamOptions, IamProfile } from '@/iam.types.js'
+import type { IamOptions, IamProfile, IamProfileResolver } from '@/iam.types.js'
 
 import { AuthGuard } from './auth.guard.js'
 
@@ -11,16 +11,15 @@ import { IamUnauthorizedException } from '@/exceptions/iam-unauthorized.exceptio
 const SECRET = 'test-secret-key-for-jwt-signing'
 
 const mockProfile: IamProfile = {
-	scopes: [
-		{
-			kind: 'WORKSPACE',
-			permissionIds: [
-				'user:read',
-			],
-		},
-	],
+	organizationId: 'org-1',
+	organizationRole: {
+		name: 'Admin',
+		permissionIds: [
+			'user:read',
+		],
+		roleId: 'role-1',
+	},
 	userId: 'user-1',
-	workspaceId: 'ws-1',
 }
 
 async function createToken(payload: Record<string, unknown>, secret = SECRET) {
@@ -44,22 +43,27 @@ function createContext(headers: Record<string, string> = {}) {
 			getRequest: () => request,
 		}),
 	}
-	return context as unknown as ExecutionContext & { request: typeof request }
+	return context as unknown as ExecutionContext & {
+		request: typeof request
+	}
 }
 
 describe('AuthGuard', () => {
 	let guard: AuthGuard
-	let profileResolver: ReturnType<typeof vi.fn>
+	let profileResolver: Mock<IamProfileResolver['resolveProfile']>
 	let options: IamOptions
 
 	beforeEach(() => {
-		profileResolver = vi.fn().mockResolvedValue(mockProfile)
+		profileResolver = vi
+			.fn<IamProfileResolver['resolveProfile']>()
+			.mockResolvedValue(mockProfile)
 		options = {
 			permissions: {},
-			profileResolver,
 			secret: SECRET,
 		}
-		guard = new AuthGuard(options)
+		guard = new AuthGuard(options, {
+			resolveProfile: profileResolver,
+		})
 	})
 
 	it('should throw IamUnauthorizedException when no authorization header', async () => {
@@ -123,6 +127,6 @@ describe('AuthGuard', () => {
 
 		expect(result).toBe(true)
 		expect(ctx.request.user).toEqual(mockProfile)
-		expect(profileResolver).toHaveBeenCalledWith('user-1')
+		expect(profileResolver).toHaveBeenCalledWith('user-1', undefined)
 	})
 })

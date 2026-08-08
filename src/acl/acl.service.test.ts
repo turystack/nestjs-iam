@@ -7,45 +7,52 @@ import { IamAclService } from './acl.service.js'
 import { IamForbiddenException } from '@/exceptions/iam-forbidden.exception.js'
 
 const PERMISSIONS: IamPermissions = {
-	organization: ['manage', 'create', 'read', 'update', 'delete'],
-	user: ['create', 'read', 'update', 'delete'],
-	workspace: ['manage', 'read'],
+	billing: [
+		'read',
+		'update',
+	],
+	product: [
+		'manage',
+		'create',
+		'read',
+		'update',
+		'delete',
+	],
+	user: [
+		'create',
+		'read',
+		'update',
+		'delete',
+	],
 }
 
-function createProfile(permissionIds: string[]): IamProfile {
+function createProfile(input: {
+	organizationPermissions?: string[]
+	workspacePermissions?: string[]
+	workspaceId?: string
+}): IamProfile {
 	return {
-		scopes: [
-			{
-				kind: 'WORKSPACE',
-				permissionIds,
-			},
-		],
+		organizationId: 'org-1',
+		...(input.organizationPermissions
+			? {
+					organizationRole: {
+						name: 'Org Role',
+						permissionIds: input.organizationPermissions,
+						roleId: 'role-org',
+					},
+				}
+			: {}),
+		...(input.workspacePermissions
+			? {
+					workspaceRole: {
+						name: 'Workspace Role',
+						permissionIds: input.workspacePermissions,
+						roleId: 'role-ws',
+						workspaceId: input.workspaceId ?? 'ws-1',
+					},
+				}
+			: {}),
 		userId: 'user-1',
-		workspaceId: 'ws-1',
-	}
-}
-
-function createProfileWithOrgScope(
-	workspacePermissions: string[],
-	orgPermissions: string[],
-	organizationId: string,
-): IamProfile {
-	return {
-		scopes: [
-			{
-				kind: 'WORKSPACE',
-				permissionIds: workspacePermissions,
-			},
-			{
-				kind: 'ORGANIZATION',
-				organization: {
-					organizationId,
-				},
-				permissionIds: orgPermissions,
-			},
-		],
-		userId: 'user-1',
-		workspaceId: 'ws-1',
 	}
 }
 
@@ -55,118 +62,201 @@ describe('IamAclService', () => {
 	beforeEach(() => {
 		const options: IamOptions = {
 			permissions: PERMISSIONS,
-			profileResolver: async () => null,
 			secret: 'test',
 		}
 		service = new IamAclService(options)
 	})
 
-	it('should allow when user has the exact permission', () => {
-		const profile = createProfile([
-			'user:read',
-		])
+	describe('organization role', () => {
+		it('should allow when the organization role has the exact permission', () => {
+			const profile = createProfile({
+				organizationPermissions: [
+					'billing:read',
+				],
+			})
 
-		expect(() =>
-			service.canPerformAction(profile, 'user:read', {
-				workspaceId: 'ws-1',
-			}),
-		).not.toThrow()
+			expect(() =>
+				service.canPerformAction(profile, 'billing:read'),
+			).not.toThrow()
+		})
+
+		it('should throw when the permission is missing', () => {
+			const profile = createProfile({
+				organizationPermissions: [
+					'billing:read',
+				],
+			})
+
+			expect(() => service.canPerformAction(profile, 'billing:update')).toThrow(
+				IamForbiddenException,
+			)
+		})
+
+		it('should apply organization grants in any workspace context', () => {
+			const profile = createProfile({
+				organizationPermissions: [
+					'product:read',
+				],
+			})
+
+			expect(() =>
+				service.canPerformAction(profile, 'product:read', {
+					workspaceId: 'ws-9',
+				}),
+			).not.toThrow()
+		})
+
+		it('should let organization:manage do everything, in any context', () => {
+			const profile = createProfile({
+				organizationPermissions: [
+					'organization:manage',
+				],
+			})
+
+			expect(() =>
+				service.canPerformAction(profile, 'billing:update'),
+			).not.toThrow()
+			expect(() =>
+				service.canPerformAction(profile, 'product:delete', {
+					workspaceId: 'ws-2',
+				}),
+			).not.toThrow()
+		})
+
+		it('should expand subject:manage into the catalog actions', () => {
+			const profile = createProfile({
+				organizationPermissions: [
+					'product:manage',
+				],
+			})
+
+			expect(() =>
+				service.canPerformAction(profile, 'product:read'),
+			).not.toThrow()
+			expect(() =>
+				service.canPerformAction(profile, 'product:delete'),
+			).not.toThrow()
+		})
+
+		it('should deny a mismatched organization context', () => {
+			const profile = createProfile({
+				organizationPermissions: [
+					'billing:read',
+				],
+			})
+
+			expect(() =>
+				service.canPerformAction(profile, 'billing:read', {
+					organizationId: 'org-other',
+				}),
+			).toThrow(IamForbiddenException)
+		})
 	})
 
-	it('should throw IamForbiddenException when user lacks permission', () => {
-		const profile = createProfile([
-			'user:read',
-		])
-
-		expect(() =>
-			service.canPerformAction(profile, 'user:create', {
+	describe('workspace role', () => {
+		it('should allow in the workspace the role belongs to', () => {
+			const profile = createProfile({
 				workspaceId: 'ws-1',
-			}),
-		).toThrow(IamForbiddenException)
+				workspacePermissions: [
+					'product:create',
+				],
+			})
+
+			expect(() =>
+				service.canPerformAction(profile, 'product:create', {
+					workspaceId: 'ws-1',
+				}),
+			).not.toThrow()
+		})
+
+		it('should deny in another workspace', () => {
+			const profile = createProfile({
+				workspaceId: 'ws-1',
+				workspacePermissions: [
+					'product:create',
+				],
+			})
+
+			expect(() =>
+				service.canPerformAction(profile, 'product:create', {
+					workspaceId: 'ws-2',
+				}),
+			).toThrow(IamForbiddenException)
+		})
+
+		it('should not leak workspace grants into organization-level checks', () => {
+			const profile = createProfile({
+				workspaceId: 'ws-1',
+				workspacePermissions: [
+					'billing:read',
+				],
+			})
+
+			expect(() => service.canPerformAction(profile, 'billing:read')).toThrow(
+				IamForbiddenException,
+			)
+		})
+
+		it('should let workspace:manage do everything within its workspace only', () => {
+			const profile = createProfile({
+				workspaceId: 'ws-1',
+				workspacePermissions: [
+					'workspace:manage',
+				],
+			})
+
+			expect(() =>
+				service.canPerformAction(profile, 'product:delete', {
+					workspaceId: 'ws-1',
+				}),
+			).not.toThrow()
+			expect(() =>
+				service.canPerformAction(profile, 'product:delete', {
+					workspaceId: 'ws-2',
+				}),
+			).toThrow(IamForbiddenException)
+			expect(() => service.canPerformAction(profile, 'billing:update')).toThrow(
+				IamForbiddenException,
+			)
+		})
 	})
 
-	it('should allow workspace:manage to access any permission', () => {
-		const profile = createProfile([
-			'workspace:manage',
-		])
-
-		expect(() =>
-			service.canPerformAction(profile, 'user:delete', {
+	describe('union of roles', () => {
+		it('should combine organization and workspace grants', () => {
+			const profile = createProfile({
+				organizationPermissions: [
+					'billing:read',
+				],
 				workspaceId: 'ws-1',
-			}),
-		).not.toThrow()
+				workspacePermissions: [
+					'product:create',
+				],
+			})
+
+			// organization grant works on an organization-level check
+			expect(() =>
+				service.canPerformAction(profile, 'billing:read'),
+			).not.toThrow()
+			// workspace grant works in its workspace
+			expect(() =>
+				service.canPerformAction(profile, 'product:create', {
+					workspaceId: 'ws-1',
+				}),
+			).not.toThrow()
+			// neither grants the other's scope
+			expect(() => service.canPerformAction(profile, 'product:create')).toThrow(
+				IamForbiddenException,
+			)
+		})
 	})
 
-	it('should expand subject:manage to all non-manage actions', () => {
-		const profile = createProfile([
-			'organization:manage',
-		])
+	describe('no roles', () => {
+		it('should deny a user with no roles', () => {
+			const profile = createProfile({})
 
-		expect(() =>
-			service.canPerformAction(profile, 'organization:read', {
-				workspaceId: 'ws-1',
-			}),
-		).not.toThrow()
-
-		expect(() =>
-			service.canPerformAction(profile, 'organization:create', {
-				workspaceId: 'ws-1',
-			}),
-		).not.toThrow()
-
-		expect(() =>
-			service.canPerformAction(profile, 'organization:delete', {
-				workspaceId: 'ws-1',
-			}),
-		).not.toThrow()
-	})
-
-	it('should deny access to wrong workspace', () => {
-		const profile = createProfile([
-			'user:read',
-		])
-
-		expect(() =>
-			service.canPerformAction(profile, 'user:read', {
-				workspaceId: 'ws-other',
-			}),
-		).toThrow(IamForbiddenException)
-	})
-
-	it('should allow organization:manage when checking org-scoped permission', () => {
-		const profile = createProfileWithOrgScope(
-			[
-				'organization:manage',
-			],
-			[
-				'organization:manage',
-			],
-			'org-1',
-		)
-
-		expect(() =>
-			service.canPerformAction(profile, 'organization:read', {
-				organizationId: 'org-1',
-				workspaceId: 'ws-1',
-			}),
-		).not.toThrow()
-	})
-
-	it('should deny when no scopes match', () => {
-		const profile = createProfile([])
-
-		expect(() =>
-			service.canPerformAction(profile, 'user:read', {
-				workspaceId: 'ws-1',
-			}),
-		).toThrow(IamForbiddenException)
-	})
-
-	it('should work without resource (no subject factory)', () => {
-		const profile = createProfile([
-			'user:read',
-		])
-
-		expect(() => service.canPerformAction(profile, 'user:read')).not.toThrow()
+			expect(() => service.canPerformAction(profile, 'user:read')).toThrow(
+				IamForbiddenException,
+			)
+		})
 	})
 })

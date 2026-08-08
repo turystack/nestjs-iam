@@ -4,6 +4,8 @@ import { jwtVerify, SignJWT } from 'jose'
 import { IAM_OPTIONS } from '@/iam.constants.js'
 import type { IamOptions, TokenPair } from '@/iam.types.js'
 
+import { IamUnauthorizedException } from '@/exceptions/iam-unauthorized.exception.js'
+
 @Injectable()
 export class IamTokenService {
 	private readonly secretKey: Uint8Array
@@ -15,12 +17,28 @@ export class IamTokenService {
 		this.secretKey = new TextEncoder().encode(options.secret)
 	}
 
-	async issueTokens(userId: string): Promise<TokenPair> {
+	/**
+	 * Issues an access/refresh pair minted for at most one workspace: pass
+	 * `workspaceId` when the user selected a workspace, omit it for
+	 * organization-only sessions. Switching workspaces = issuing new tokens.
+	 */
+	async issueTokens(
+		userId: string,
+		options?: {
+			workspaceId?: string
+		},
+	): Promise<TokenPair> {
 		const accessExpiresIn = this.options.accessExpiresIn ?? '15m'
 		const refreshExpiresIn = this.options.refreshExpiresIn ?? '7d'
+		const workspaceClaim = options?.workspaceId
+			? {
+					workspaceId: options.workspaceId,
+				}
+			: {}
 
 		const accessToken = await new SignJWT({
 			userId,
+			...workspaceClaim,
 		})
 			.setProtectedHeader({
 				alg: 'HS256',
@@ -32,6 +50,7 @@ export class IamTokenService {
 		const refreshToken = await new SignJWT({
 			rt: true,
 			userId,
+			...workspaceClaim,
 		})
 			.setProtectedHeader({
 				alg: 'HS256',
@@ -49,21 +68,32 @@ export class IamTokenService {
 		}
 	}
 
+	/** Returns the token subject and the workspace it was minted for, if any. */
 	async verifyRefreshToken(token: string): Promise<{
 		userId: string
+		workspaceId?: string
 	}> {
-		const { payload } = await jwtVerify(token, this.secretKey, {
-			algorithms: [
-				'HS256',
-			],
-		})
+		try {
+			const { payload } = await jwtVerify(token, this.secretKey, {
+				algorithms: [
+					'HS256',
+				],
+			})
 
-		if (!payload.rt || typeof payload.userId !== 'string') {
-			throw new Error('Invalid refresh token')
-		}
+			if (!payload.rt || typeof payload.userId !== 'string') {
+				throw new IamUnauthorizedException()
+			}
 
-		return {
-			userId: payload.userId,
+			return {
+				userId: payload.userId,
+				...(typeof payload.workspaceId === 'string'
+					? {
+							workspaceId: payload.workspaceId,
+						}
+					: {}),
+			}
+		} catch {
+			throw new IamUnauthorizedException()
 		}
 	}
 

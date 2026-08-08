@@ -18,47 +18,56 @@ export class IamAclService {
 		private readonly options: IamOptions,
 	) {}
 
-	private defineAbilities(
-		user: IamProfile,
-		options: {
-			organizationId?: string
-		},
-	) {
+	/**
+	 * Abilities are the union of the organization role and the workspace role.
+	 * Organization grants are conditioned on `organizationId` (valid in any
+	 * workspace); workspace grants also carry the role's `workspaceId`, so
+	 * they never leak into other workspaces or organization-level checks.
+	 *
+	 * `organization:manage` grants everything in the organization;
+	 * `workspace:manage` grants everything within the role's workspace.
+	 */
+	private defineAbilities(user: IamProfile) {
 		const { can, build } = new AbilityBuilder(Ability)
 
-		const permissions =
-			(options.organizationId
-				? user.scopes.find(
-						(scope) =>
-							scope.organization?.organizationId === options.organizationId ||
-							scope.kind === 'WORKSPACE',
-					)?.permissionIds
-				: user.scopes.find((scope) => scope.kind === 'WORKSPACE')
-						?.permissionIds) ?? []
+		const grant = (permissionIds: string[], condition: MongoQuery) => {
+			for (const permission of permissionIds) {
+				const [subject, action] = permission.split(':')
 
-		const condition: MongoQuery = {
-			workspaceId: user.workspaceId,
+				if (subject === 'organization' && action === 'manage') {
+					can('manage', 'all', {
+						organizationId: user.organizationId,
+					})
+				} else if (
+					subject === 'workspace' &&
+					action === 'manage' &&
+					'workspaceId' in condition
+				) {
+					can('manage', 'all', condition)
+				} else if (action === 'manage') {
+					const actions = this.options.permissions[subject] ?? []
+
+					for (const expanded of actions.filter((a) => a !== 'manage')) {
+						can(expanded, subject, condition)
+					}
+				} else {
+					can(action, subject, condition)
+				}
+			}
 		}
 
-		permissions.forEach((permission) => {
-			const [subject, action] = permission.split(':')
+		if (user.organizationRole) {
+			grant(user.organizationRole.permissionIds, {
+				organizationId: user.organizationId,
+			})
+		}
 
-			if (subject === 'workspace' && action === 'manage') {
-				can('manage', 'all', {
-					workspaceId: user.workspaceId,
-				})
-			} else if (action === 'manage') {
-				const actions = this.options.permissions[subject] ?? []
-
-				actions
-					.filter((a) => a !== 'manage')
-					.forEach((a) => {
-						can(a, subject, condition)
-					})
-			} else {
-				can(action, subject, condition)
-			}
-		})
+		if (user.workspaceRole) {
+			grant(user.workspaceRole.permissionIds, {
+				organizationId: user.organizationId,
+				workspaceId: user.workspaceRole.workspaceId,
+			})
+		}
 
 		return build()
 	}
@@ -66,34 +75,28 @@ export class IamAclService {
 	public canPerformAction(
 		user: IamProfile,
 		permission: string,
-		resource?: IamAclContext,
+		context?: IamAclContext,
 	) {
-		const ability = this.defineAbilities(user, {
-			organizationId: resource?.organizationId,
-		})
+		const ability = this.defineAbilities(user)
+		const [subject, action] = permission.split(':')
 
-		const permissionsToCheck: string[] = [
-			permission,
-			'workspace:manage',
-		]
-
-		if (resource?.organizationId) {
-			permissionsToCheck.push('organization:manage')
+		// The checked resource: the user's organization, plus whatever the
+		// route declares. Workspace grants carry a workspaceId condition, so
+		// they only match when the route declares the same workspace — they
+		// never authorize organization-level routes, and a mismatched context
+		// id simply fails the conditions.
+		const resource = {
+			organizationId: user.organizationId,
+			...context,
 		}
 
-		const authorized = permissionsToCheck.some((perm) => {
-			const [subject, action] = perm.split(':')
-
-			return resource
-				? ability.can(
-						action,
-						subjectFactory(subject, {
-							type: subject,
-							...resource,
-						}),
-					)
-				: ability.can(action, subject)
-		})
+		const authorized = ability.can(
+			action,
+			subjectFactory(subject, {
+				type: subject,
+				...resource,
+			}),
+		)
 
 		if (!authorized) {
 			throw new IamForbiddenException()
