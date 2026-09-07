@@ -21,7 +21,7 @@ const profile: IamProfile = {
 	userId: 'u1',
 }
 
-// the lib layer (e.g. libs/user)
+// a domain package (e.g. domains/identity)
 type User = {
 	id: string
 	organizationId: string

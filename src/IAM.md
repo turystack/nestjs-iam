@@ -4,13 +4,13 @@ JWT authentication and CASL-based ACL for NestJS. One central organization, N wo
 
 ## Setup
 
-Register the module **once** in the app root. Registration is global: guards and services are shared app-wide — domain services in monorepo libs just inject `IamTokenService` / `IamAclService`.
+Register the module **once** in the app root. Registration is global: guards and services are shared app-wide — domain packages just inject `IamTokenService` / `IamAclService`.
 
 ```ts
 import { Injectable, Module } from '@nestjs/common'
 import { ConfigModule, defineConfigSchema } from '@turystack/nestjs-config'
 import { IamModule, type IamPermissions, type IamProfile, type IamProfileResolver } from '@turystack/nestjs-iam'
-import { type User, UserRepository } from '@turystack/libs-user'
+import { type User, UserRepository } from '@repo/identity'
 import { z } from 'zod'
 
 // the validated environment the factory form reads from...
@@ -31,7 +31,7 @@ const PERMISSIONS: IamPermissions = {
   organization: ['manage', 'read', 'update'],
 }
 
-// ...and the resolver — the single bridge to your libs
+// ...and the resolver — the single bridge to your domain packages
 @Injectable()
 class ProfileResolverService implements IamProfileResolver {
   constructor(private readonly userRepository: UserRepository) {}
@@ -90,6 +90,8 @@ export class AppModule {}
 | `permissions` | `Record<string, string[]>` | Yes | Actions per subject; the ACL engine expands `manage` into them |
 | `profileResolver` | `Type<IamProfileResolver>` | Yes | Class with `resolveProfile(userId)` — instantiated via DI |
 | `imports` | `ModuleMetadata['imports']` | No | Modules providing the resolver's dependencies, when not global |
+| `tokenSource` | `'header' \| 'cookie' \| 'both'` | No | Where the guard reads the access token. Default `header` |
+| `cookieName` | `string` | No | Cookie carrying the access token when `tokenSource` reads cookies. Default `session` |
 | `accessExpiresIn` | `string` | No | Access token TTL (`s/m/h/d` units). Default `15m` |
 | `refreshExpiresIn` | `string` | No | Refresh token TTL. Default `7d` |
 
@@ -125,6 +127,32 @@ How the check works — abilities are the **union** of the two roles:
 - Organization grants are conditioned on `organizationId` and apply on organization-level routes and in any workspace.
 - Workspace grants also carry the role's `workspaceId`: they only match when the route declares the same workspace — they never authorize organization-level routes nor other workspaces.
 - `organization:manage` grants everything in the organization; `workspace:manage` grants everything within the role's workspace.
+
+## Where the token comes from
+
+By default the guard reads `Authorization: Bearer <token>`, which is what a
+native or server-to-server client sends.
+
+A browser is the case that differs. A token the page can read is a token a
+script on the page can exfiltrate, so a web session is better delivered as an
+httpOnly cookie — unreadable by JavaScript, sent by the browser on its own.
+
+```ts
+IamModule.register((config) => ({
+  secret: config.get('IAM_SECRET'),
+  permissions: PERMISSIONS,
+  profileResolver: ProfileResolverService,
+  tokenSource: 'cookie',   // 'header' (default) | 'cookie' | 'both'
+  cookieName: 'session',   // default 'session'
+}))
+```
+
+Use `both` when one API serves a web app and a mobile app: the header is read
+first, so an explicit bearer always wins over an ambient cookie.
+
+The cookie is read from `request.cookies` when a cookie parser populated it, and
+from the raw `Cookie` header otherwise — authenticating never depends on a
+middleware someone forgot to install.
 
 ## Tokens
 

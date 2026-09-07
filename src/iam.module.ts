@@ -23,7 +23,7 @@ export class IamModule {
 	 * Registers the IAM globally — once, in the API root. The only bridge to
 	 * your project is `profileResolver`: a class implementing
 	 * `IamProfileResolver` (typically a project-level ProfileResolverService backed by
-	 * a lib UserRepository/UserService). It is instantiated via DI, so its
+	 * a domain package's repository). It is instantiated via DI, so its
 	 * dependencies come from global lib modules or from `imports`.
 	 *
 	 * The `(config) => options` factory form injects the `ConfigService` from

@@ -16,6 +16,7 @@ export type {
 	IamProfile,
 	IamProfileResolver,
 	IamRole,
+	IamTokenSource,
 	IamWorkspaceRole,
 	TokenPair,
 } from '@/iam.types.js'

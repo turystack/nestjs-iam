@@ -10,6 +10,7 @@ import { IAM_OPTIONS, IAM_PROFILE_RESOLVER } from '@/iam.constants.js'
 import { publishProfileToContext } from '@/iam.context.js'
 import type { IamOptions, IamProfileResolver } from '@/iam.types.js'
 
+import { readAccessToken } from '@/auth/token-source.js'
 import { IamUnauthorizedException } from '@/exceptions/iam-unauthorized.exception.js'
 
 @Injectable()
@@ -23,13 +24,7 @@ export class AuthGuard implements CanActivate {
 
 	async canActivate(context: ExecutionContext): Promise<boolean> {
 		const request = context.switchToHttp().getRequest()
-		const authorization = request.headers.authorization
-
-		if (!authorization) {
-			throw new IamUnauthorizedException()
-		}
-
-		const [accessToken] = authorization.split(' ').reverse()
+		const accessToken = readAccessToken(request, this.options)
 
 		if (!accessToken) {
 			throw new IamUnauthorizedException()
