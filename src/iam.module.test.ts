@@ -49,6 +49,9 @@ describe('IamModule', () => {
 			expect(dynamicModule.imports).toEqual([])
 			expect(dynamicModule.exports).toEqual([
 				IAM_OPTIONS,
+				// A controller's `@Auth()` builds the guard in the controller's own
+				// module, so the resolver has to be visible from there.
+				IAM_PROFILE_RESOLVER,
 				AuthGuard,
 				AclGuard,
 				IamAclService,
