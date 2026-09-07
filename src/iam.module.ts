@@ -40,6 +40,12 @@ export class IamModule {
 		return {
 			exports: [
 				IAM_OPTIONS,
+				// `@Auth()` puts the guard on a controller, and Nest builds an
+				// enhancer in the *controller's* module — where it resolves from
+				// that module plus the global ones. Without this the resolver is
+				// invisible there, and the application fails at boot with an
+				// unresolved parameter index on a class nobody wrote.
+				IAM_PROFILE_RESOLVER,
 				AuthGuard,
 				AclGuard,
 				IamAclService,
